@@ -1,6 +1,6 @@
-# Mina zkApp: Message Board
+# Mina zkApp: Guess Race
 
-This template uses TypeScript.
+Guess race zkapp registers in order first contest participant to find answer/secret for a game. 
 
 ## How to build
 
@@ -24,3 +24,4 @@ npm run coverage
 ## License
 
 [Apache-2.0](LICENSE)
+# zkapp-guesser-race

@@ -1,4 +1,4 @@
-import { Add } from './Add';
+import { SecretGuesserRace } from './SecretGuesserRace';
 import {
   isReady,
   shutdown,
@@ -6,8 +6,10 @@ import {
   Mina,
   PrivateKey,
   PublicKey,
-  AccountUpdate,
+  AccountUpdate
 } from 'snarkyjs';
+
+import {Answer} from "./SecretGuesserRace";
 
 /*
  * This file specifies how to test the `Add` example smart contract. It is safe to delete this file and replace
@@ -16,6 +18,9 @@ import {
  * See https://docs.minaprotocol.com/zkapps for more info.
  */
 
+const initialSecretValue = "initialSecret"
+
+
 function createLocalBlockchain() {
   const Local = Mina.LocalBlockchain();
   Mina.setActiveInstance(Local);
@@ -23,23 +28,24 @@ function createLocalBlockchain() {
 }
 
 async function localDeploy(
-  zkAppInstance: Add,
-  zkAppPrivatekey: PrivateKey,
-  deployerAccount: PrivateKey
+    zkAppInstance: SecretGuesserRace,
+    zkAppPrivatekey: PrivateKey,
+    deployerAccount: PrivateKey,
+    initialSecret: Field
 ) {
   const txn = await Mina.transaction(deployerAccount, () => {
     AccountUpdate.fundNewAccount(deployerAccount);
     zkAppInstance.deploy({ zkappKey: zkAppPrivatekey });
-    zkAppInstance.init();
+    zkAppInstance.init(initialSecret);
     zkAppInstance.sign(zkAppPrivatekey);
   });
   await txn.send().wait();
 }
 
-describe('Add', () => {
+describe('SecretGuesser', () => {
   let deployerAccount: PrivateKey,
-    zkAppAddress: PublicKey,
-    zkAppPrivateKey: PrivateKey;
+      zkAppAddress: PublicKey,
+      zkAppPrivateKey: PrivateKey;
 
   beforeEach(async () => {
     await isReady;
@@ -55,23 +61,28 @@ describe('Add', () => {
     setTimeout(shutdown, 0);
   });
 
-  it('generates and deploys the `Add` smart contract', async () => {
-    const zkAppInstance = new Add(zkAppAddress);
-    await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
-    const num = zkAppInstance.num.get();
-    expect(num).toEqual(Field.one);
-  });
+  it('generates and deploys the `SecretGuesserRace` smart contract', async () => {
+    const zkAppInstance = new SecretGuesserRace(zkAppAddress);
+    const initialSecret = new Answer(initialSecretValue);
+    let initialSecretHash: Field = initialSecret.toHash();
+    await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount, initialSecretHash);
+    const zkAppSecret = zkAppInstance.secret.get()
+    expect(zkAppSecret).toEqual(initialSecretHash);
+  })
 
-  it('correctly updates the num state on the `Add` smart contract', async () => {
-    const zkAppInstance = new Add(zkAppAddress);
-    await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
+  it('makes correct guess and add user as first solver', async () => {
+    const zkAppInstance = new SecretGuesserRace(zkAppAddress);
+    const initialSecret = new Answer(initialSecretValue);
+    let initialSecretHash: Field = initialSecret.toHash();
+    await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount, initialSecretHash);
+    const guesserAccount = PrivateKey.random()
+    //
+    //console.log("zkAppSecret",zkAppSecret.toString());
     const txn = await Mina.transaction(deployerAccount, () => {
-      zkAppInstance.update();
+      zkAppInstance.guess(initialSecret, guesserAccount);
       zkAppInstance.sign(zkAppPrivateKey);
     });
     await txn.send().wait();
+  })
 
-    const updatedNum = zkAppInstance.num.get();
-    expect(updatedNum).toEqual(Field(3));
-  });
-});
+})
